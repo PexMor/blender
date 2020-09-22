@@ -20,7 +20,13 @@ UNIT = 0.01 * 100
 
 print("----===[ exec started")
 import os
-print(os.environ['HOME'])
+print("HOME:",os.environ['HOME'])
+PWD = os.environ['PWD']
+print("PWD:",PWD)
+# print(bpy.utils.script_path_user())
+SF = os.path.dirname(os.path.realpath(__file__))
+print("SF:",SF)
+SF = "."
 
 print("----===[ clean existing objects")
 # Select objects by type
@@ -44,7 +50,7 @@ bpy.ops.object.delete()
 def loadBasicCurve():
     print("----===[ capture existing objects")
     names_pre_import = set([ o.name for o in C.scene.objects ])
-    pth = os.environ['PWD']+'/resources'
+    pth = SF+'/resources'
     # https://www.thingiverse.com/thing:1001461/files
     name = '2020.svg'
     fp = pth + "/" + name
@@ -136,6 +142,8 @@ rodZ(rlen,(1+rlen,0,1))
 rodZ(rlen,(0,1+rlen,1))
 rodZ(rlen,(1+rlen,1+rlen,1))
 
+rodZ(rlen,(1+rlen/2,1+rlen/2,1))
+
 def add_cam(location, rotation):
     bpy.ops.object.camera_add(location=location, rotation=rotation)
     return bpy.context.active_object
@@ -144,25 +152,43 @@ def add_empty(location):
     bpy.ops.object.empty_add(location=location)
     return bpy.context.active_object    
 
-def look_at(obj_camera, point):
-    loc_camera = obj_camera.matrix_world.to_translation()
+def look_at(obj_camera, point=mathutils.Vector((0.0, 0.0, 0.0)), distance=10.0):
+    # loc_camera = obj_camera.matrix_world.to_translation()
 
-    direction = point - loc_camera
+    direction = obj_camera.location - point
     # point the cameras '-Z' and use its 'Y' as up
-    rot_quat = direction.to_track_quat('-Z', 'Y')
+    rot_quat = direction.to_track_quat('Z', 'Y')
 
     # assume we're using euler rotation
     obj_camera.rotation_euler = rot_quat.to_euler()
+    print(rot_quat)
+    obj_camera.location = rot_quat * mathutils.Quaternion((0.0, 0.0, 0.0, distance))
 
-scene.render.resolution_x = 320
-scene.render.resolution_y = 320
+scene.render.resolution_x = 1920 / 5
+scene.render.resolution_y = 1080 / 5
     
-cam = add_cam(location=(0, -15, 15), rotation=(math.pi/2, 0, 0))
-look_at(cam,Vector((0,0,0)))
-empty = add_empty(location=(0, 0, 0))
-cam.parent = empty
+XDELTA = UNIT * 6.5
+YDELTA = UNIT * 6.5
+ZDELTA = UNIT * 5.5
+CDIST = 20
+cam = add_cam(location=(0+XDELTA, -CDIST+YDELTA, ZDELTA), rotation=(math.pi/2, 0, 0))
 
-num_frames = 60
+direction = cam.location - Vector((0,0,0))
+
+rot = direction.to_track_quat('Z', 'Y').to_matrix().to_4x4()
+loc = mathutils.Matrix.Translation(cam.location)
+
+cam.matrix_world =  loc @ rot
+
+up = cam.matrix_world.to_quaternion() @ Vector((0.0, 1.0, 0.0))
+cam_direction = cam.matrix_world.to_quaternion() @ Vector((0.0, 0.0, -1.0))
+print("UP:",up,"DIR:",cam_direction,"Q:",cam.matrix_world.to_quaternion())
+
+empty = add_empty(location=(0+XDELTA, 0+YDELTA, 0+ZDELTA))
+cam.parent = empty
+# look_at(cam,Vector((0+DELTA,0+DELTA,0+DELTA)))
+
+num_frames = 10
 gamma = math.pi * 2 / num_frames
 for i in range(1, num_frames+1):
     empty.rotation_euler[2] = gamma * i
